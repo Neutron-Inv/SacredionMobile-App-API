@@ -40,7 +40,7 @@ return [
     ],
 
     'proxy' => [
-        'url' => env('PROXY_SERVER_URL', 'https://your-proxy-server.com/fetch'),
+        'url' => env('PROXY_SERVER_URL', 'https://your-netlify-site.netlify.app/.netlify/functions/cors-proxy'),
     ],
 
 ];
