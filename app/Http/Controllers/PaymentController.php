@@ -92,119 +92,151 @@ class PaymentController extends Controller
 
     public function webhook(Request $request)
     {
-        Log::info('Webhook received', [
-            'payload' => $request->all()
-        ]);
+        Log::info('Webhook received', ['method' => $request->method(), 'payload' => $request->all()]);
+        $payload = $request->all();
+        $signature = $request->header('X-Paystack-Signature');
 
-        try {
-            // Verify the webhook is from Paystack
-            if (!$this->verifyWebhookSignature($request)) {
-                Log::error('Invalid webhook signature');
-                return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 400);
-            }
+        // Verify webhook signature
+        if (!$this->verifyPaystackSignature($signature, $request->getContent())) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 400);
+        }
 
-            $payload = $request->all();
+        // Handle the event
+        if ($payload['event'] === 'charge.success') {
+            $reference = $payload['data']['reference'];
+            $payment = Payment::where('payment_reference', $reference)->first();
 
-            // Handle only successful charge events
-            if ($payload['event'] === 'charge.success') {
-                $data = $payload['data'];
-                $payment = Payment::where('reference', $data['reference'])->first();
-
-                if (!$payment) {
-                    Log::error('Payment not found for webhook', ['reference' => $data['reference']]);
-                    return response()->json(['status' => 'error', 'message' => 'Payment not found'], 404);
-                }
-
-                Log::info('Processing successful payment', [
-                    'payment_id' => $payment->id,
-                    'amount' => $data['amount'],
-                    'reference' => $data['reference']
-                ]);
-
+            if ($payment && $payment->status === 'pending') {
                 // Update payment status
                 $payment->update([
-                    'status' => 'success',
-                    'paid_at' => now(),
-                    'payment_data' => json_encode($data)
+                    'status' => 'completed',
+                    'payment_details' => json_encode($payload['data']),
                 ]);
 
                 // Create subscription
-                $subscription = $this->createSubscription($payment);
-
-                if ($subscription) {
-                    Log::info('Subscription created successfully', [
-                        'subscription_id' => $subscription->id,
-                        'payment_id' => $payment->id
-                    ]);
-
-                    return response()->json([
-                        'status' => 'success',
-                        'message' => 'Webhook processed successfully'
-                    ]);
-                }
+                $this->createSubscription($payment);
             }
-
-            return response()->json(['status' => 'success', 'message' => 'Webhook received']);
-        } catch (\Exception $e) {
-            Log::error('Error processing webhook', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Error processing webhook'
-            ], 500);
         }
+
+        return response()->json(['status' => 'success']);
     }
 
-    private function createSubscription($payment)
+    protected function verifyPaystackSignature($signature, $payload)
     {
+        $computedSignature = hash_hmac('sha512', $payload, $this->paystackSecretKey);
+        return hash_equals($computedSignature, $signature);
+    }
+
+    protected function createSubscription($payment)
+    {
+        Log::info('Starting subscription creation process', [
+            'payment_id' => $payment->id,
+            'payment_reference' => $payment->payment_reference
+        ]);
+
         try {
-            Log::info('Starting subscription creation process', [
-                'payment_id' => $payment->id,
-                'user_id' => $payment->user_id
+            // Get user, plan, and cors details
+            Log::info('Fetching user, plan, and cors details', [
+                'user_id' => $payment->user_id,
+                'plan_id' => $payment->plan_id,
+                'cors_id' => $payment->cors_id
             ]);
 
             $user = User::findOrFail($payment->user_id);
             $plan = Plan::findOrFail($payment->plan_id);
             $cors = Cors::findOrFail($payment->cors_id);
 
+            Log::info('Successfully retrieved user, plan, and cors details', [
+                'user_name' => $user->user_name,
+                'plan_name' => $plan->name,
+                'cors_name' => $cors->name
+            ]);
+
             // Calculate expiry date based on plan duration
             $days = (int)$plan->duration;
-            $expiryDate = now()->addDays($days);
-            $expiryDateFormatted = $expiryDate->format('Ymd');
+            $limit = (int)$plan->user_limit;
+            $expiryDate = Carbon::now()->addDays($days);
             $daysInSeconds = $days * 24 * 60 * 60 * 1000;
 
-            // Create subscription record first
+            Log::info('Calculated subscription parameters', [
+                'days' => $days,
+                'limit' => $limit,
+                'expiry_date' => $expiryDate->format('Y-m-d H:i:s'),
+                'days_in_seconds' => $daysInSeconds
+            ]);
+
+            // Create subscription
+            Log::info('Creating subscription record');
+
             $subscription = Subscription::create([
                 'user_id' => $user->id,
                 'cors_id' => $cors->id,
                 'plan_id' => $plan->id,
-                'payment_reference' => $payment->reference,
+                'payment_reference' => $payment->payment_reference,
                 'expiry_date' => $expiryDate,
-                'user_limit' => $plan->user_limit,
+                'user_limit' => $limit,
                 'days_limit' => $days
             ]);
 
-            // Generate CORS service URL
-            $corsUrl = "{$cors->url}/ShareUser.html?usr={$cors->username}&pwd={$cors->password}"
-                . "&addusr={$user->user_name}&addpwd={$user->user_name}"
-                . "&addexp={$expiryDateFormatted}&addcnt={$daysInSeconds}&limitn={$plan->user_limit}";
-
-            // Get the proxy URL from config
-            $proxyUrl = config('services.proxy.url');
-
-            Log::info('Making proxy service request', [
-                'subscription_id' => $subscription->id,
-                'cors_url' => $corsUrl,
-                'proxy_url' => $proxyUrl
+            Log::info('Subscription record created successfully', [
+                'subscription_id' => $subscription->id
             ]);
 
-            // Initialize cURL session for proxy request
+            // Update payment with subscription_id
+            Log::info('Updating payment with subscription_id');
+
+            $payment->update(['subscription_id' => $subscription->id]);
+
+            Log::info('Payment updated with subscription_id');
+
+            // Make the CORS service request
+            Log::info('Initiating CORS service request');
+
+            $this->makeCorsServiceRequest($subscription, $cors, $user, $expiryDate, $daysInSeconds, $limit);
+
+            Log::info('Subscription creation process completed successfully', [
+                'subscription_id' => $subscription->id,
+                'payment_id' => $payment->id
+            ]);
+
+            return $subscription;
+        } catch (\Exception $e) {
+            Log::error('Error in subscription creation process', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            throw $e;
+        }
+    }
+
+    protected function makeCorsServiceRequest($subscription, $cors, $user, $expiryDate, $daysInSeconds, $limit)
+    {
+        Log::info('Starting CORS service request', [
+            'subscription_id' => $subscription->id,
+            'cors_id' => $cors->id,
+            'user_id' => $user->id
+        ]);
+
+        $corsUrl = "{$cors->url}/ShareUser.html?usr={$cors->username}&pwd={$cors->password}"
+            . "&addusr={$user->user_name}&addpwd={$user->user_name}"
+            . "&addexp={$expiryDate->format('Ymd')}&addcnt={$daysInSeconds}&limitn={$limit}";
+
+        Log::info('Generated CORS service URL', [
+            'url' => $corsUrl,
+            'expiry_date_formatted' => $expiryDate->format('Ymd')
+        ]);
+
+        try {
+            Log::info('Initializing proxy request', [
+                'proxy_url' => config('services.proxy.url'),
+                'target_url' => $corsUrl
+            ]);
+
             $ch = curl_init();
             curl_setopt_array($ch, [
-                CURLOPT_URL => $proxyUrl,
+                CURLOPT_URL => config('services.proxy.url'),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => json_encode([
@@ -223,71 +255,56 @@ class PaymentController extends Controller
                 CURLOPT_CONNECTTIMEOUT => 10
             ]);
 
+            Log::info('Executing proxy request');
+
             $response = curl_exec($ch);
             $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
+
+            Log::info('Proxy request completed', [
+                'status_code' => $statusCode,
+                'response_length' => strlen($response),
+                'curl_error' => $curlError ?: null
+            ]);
+
             curl_close($ch);
 
-            Log::info('Proxy service response received', [
-                'subscription_id' => $subscription->id,
-                'status_code' => $statusCode,
-                'curl_error' => $curlError,
-                'response' => $response
-            ]);
-
-            if ($curlError) {
-                Log::error('Proxy service request failed', [
+            if ($statusCode !== 200) {
+                Log::error('Proxy request failed', [
                     'subscription_id' => $subscription->id,
-                    'error' => $curlError
+                    'status_code' => $statusCode,
+                    'response' => $response,
+                    'curl_error' => $curlError ?: null
                 ]);
-                // Even if proxy request fails, we return the subscription
-                // as it's already created in our system
-                return $subscription;
+            } else {
+                // Try to decode the proxy response
+                $proxyResponse = json_decode($response, true);
+                if (!$proxyResponse || !isset($proxyResponse['success'])) {
+                    Log::error('Invalid proxy response format', [
+                        'subscription_id' => $subscription->id,
+                        'response' => $response
+                    ]);
+                } elseif (!$proxyResponse['success']) {
+                    Log::error('Proxy request unsuccessful', [
+                        'subscription_id' => $subscription->id,
+                        'proxy_error' => $proxyResponse['error'] ?? 'Unknown error'
+                    ]);
+                } else {
+                    Log::info('CORS service request successful through proxy', [
+                        'subscription_id' => $subscription->id,
+                        'cors_status_code' => $proxyResponse['status_code'] ?? $statusCode
+                    ]);
+                }
             }
-
-            $proxyResponse = json_decode($response, true);
-
-            if (!$proxyResponse || !isset($proxyResponse['success'])) {
-                Log::error('Invalid proxy response format', [
-                    'subscription_id' => $subscription->id,
-                    'response' => $response
-                ]);
-                return $subscription;
-            }
-
-            if (!$proxyResponse['success']) {
-                Log::error('Proxy request unsuccessful', [
-                    'subscription_id' => $subscription->id,
-                    'proxy_error' => $proxyResponse['error'] ?? 'Unknown error'
-                ]);
-                return $subscription;
-            }
-
-            Log::info('CORS service request successful through proxy', [
-                'subscription_id' => $subscription->id,
-                'cors_status_code' => $proxyResponse['status_code']
-            ]);
-
-            return $subscription;
         } catch (\Exception $e) {
-            Log::error('Error in subscription creation', [
+            Log::error('CORS service request error', [
+                'subscription_id' => $subscription->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'payment_id' => $payment->id
+                'trace' => $e->getTraceAsString()
             ]);
+
             throw $e;
         }
-    }
-
-    private function verifyWebhookSignature(Request $request)
-    {
-        $signature = $request->header('x-paystack-signature');
-        $payload = $request->getContent();
-        $secret = config('services.paystack.secret_key');
-
-        $computedSignature = hash_hmac('sha512', $payload, $secret);
-
-        return hash_equals($signature, $computedSignature);
     }
 
     public function callback(Request $request)
