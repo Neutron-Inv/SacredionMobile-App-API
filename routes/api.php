@@ -74,3 +74,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 Route::post('/payment/webhook', [PaymentController::class, 'webhook'])->name('payment.callback');
 
 Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('payment.callback');
+
+Route::post('/send-verification-code', [VerifyEmailController::class, 'sendVerificationCode']);
+Route::post('/verify-code', [VerifyEmailController::class, 'verifyCode']);
