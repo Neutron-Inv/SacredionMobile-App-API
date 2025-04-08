@@ -90,7 +90,7 @@ class PaymentController extends Controller
         }
     }
 
-    public function handleWebhook(Request $request)
+    public function webhook(Request $request)
     {
         Log::info('Webhook received', [
             'payload' => $request->all()
