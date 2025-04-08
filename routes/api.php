@@ -77,3 +77,7 @@ Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('p
 
 Route::post('/send-verification-code', [VerifyEmailController::class, 'sendVerificationCode']);
 Route::post('/verify-code', [VerifyEmailController::class, 'verifyCode']);
+
+// CORS Proxy routes
+Route::get('/cors-proxy/{token}', [SubscriptionController::class, 'handleProxyRequest'])->name('cors.proxy');
+Route::get('/cors-status/{token}', [SubscriptionController::class, 'checkStatus'])->name('cors.status');

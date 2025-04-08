@@ -11,6 +11,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('cors_id')->constrained('cors')->onDelete('cascade');
+            $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade');
             $table->string('payment_reference')->unique();
             $table->date('expiry_date');
             $table->integer('user_limit'); // Max number of users allowed

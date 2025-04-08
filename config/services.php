@@ -39,4 +39,8 @@ return [
         'secret_key' => env('PAYSTACK_SECRET_KEY'),
     ],
 
+    'proxy' => [
+        'url' => env('PROXY_SERVER_URL', 'https://your-proxy-server.com/fetch'),
+    ],
+
 ];
