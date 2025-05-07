@@ -17,7 +17,7 @@ class SubscriptionController extends Controller
             ->join('payments', 'subscriptions.payment_reference', '=', 'payments.payment_reference')
             ->where('subscriptions.user_id', $request->user_id)
             ->orderBy('subscriptions.created_at', 'desc')
-            ->select('subscriptions.*', 'payments.price') // include price in the result
+            ->select('subscriptions.*', 'payments.amount') // include price in the result
             ->get();
 
         return response()->json([
