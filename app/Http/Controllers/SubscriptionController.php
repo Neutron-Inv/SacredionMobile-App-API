@@ -14,8 +14,10 @@ class SubscriptionController extends Controller
     public function order_history(Request $request)
     {
         $subscriptions = Subscription::with(['cors', 'plan'])
-            ->where('user_id', $request->user_id)
-            ->orderBy('created_at', 'desc')
+            ->join('payments', 'subscriptions.payment_reference', '=', 'payments.payment_reference')
+            ->where('subscriptions.user_id', $request->user_id)
+            ->orderBy('subscriptions.created_at', 'desc')
+            ->select('subscriptions.*', 'payments.price') // include price in the result
             ->get();
 
         return response()->json([
