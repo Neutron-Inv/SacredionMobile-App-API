@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class RegisteredUserController extends Controller
 {
@@ -24,12 +25,22 @@ class RegisteredUserController extends Controller
     {
         Log::info('Registration received', ['method' => $request->method(), 'payload' => $request->all()]);
 
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:users',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ]);
+        try {
+            $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|string|lowercase|email|max:255|unique:users',
+                'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            ]);
+        } catch (ValidationException $e) {
+            if (isset($e->errors()['email']) && in_array('The email has already been taken.', $e->errors()['email'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Email already taken'
+                ], 422);
+            }
+            throw $e;
+        }
 
         // Generate username from first and last name
         $userName = $this->generateUsername($request->first_name, $request->last_name);
