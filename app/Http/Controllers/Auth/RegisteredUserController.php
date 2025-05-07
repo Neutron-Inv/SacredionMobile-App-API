@@ -68,7 +68,7 @@ class RegisteredUserController extends Controller
 
     /**
      * Generate a username from first name with random characters.
-     * 
+     *
      * @param string $firstName
      * @param string $lastName
      * @return string
@@ -88,7 +88,7 @@ class RegisteredUserController extends Controller
         $prefix = substr($firstName, 0, $prefixLength);
 
         // Generate random characters
-        $randomLength = 12 - strlen($prefix);
+        $randomLength = 10 - strlen($prefix);
         $randomChars = '';
 
         // Define character sets
