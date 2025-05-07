@@ -35,7 +35,7 @@ class SubscriptionController extends Controller
 
     public function plan($cors_id)
     {
-        $plans = Plan::whereRaw('JSON_CONTAINS(cors, ?)', [json_encode($cors_id)])->get();
+        $plans = Plan::whereRaw('JSON_CONTAINS(cors, ?)', $cors_id)->get();
 
         return response()->json([
             'status' => 'success',
