@@ -8,7 +8,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\MobilePasswordResetController;
+use App\Http\Controllers\Auth\MobilePasswordResetController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
