@@ -15,6 +15,7 @@ class SubscriptionController extends Controller
     {
         $subscriptions = Subscription::with(['cors', 'plan'])
             ->where('user_id', $request->user_id)
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return response()->json([
