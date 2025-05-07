@@ -14,9 +14,11 @@ return new class extends Migration {
             $table->string('username');
             $table->string('password');
             $table->string('url');
-            $table->string('station_list'); // Stores a list of stations in JSON format
-            $table->string('latitude'); // Stores a list of stations in JSON format
-            $table->string('longitude'); // Stores a list of stations in JSON format
+            $table->string('station_list');
+            $table->string('latitude');
+            $table->string('longitude');
+            $table->string('ip_address');
+            $table->string('port');
             $table->timestamps();
         });
     }

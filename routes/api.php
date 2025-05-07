@@ -66,7 +66,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Subscription Routes
     Route::get('/order-history/{user_id}', [SubscriptionController::class, 'order_history']);
     Route::get('/cors-list', [SubscriptionController::class, 'cors_list']);
-    Route::get('/plans', [SubscriptionController::class, 'plan']);
+    Route::get('/plans/{cors_id}', [SubscriptionController::class, 'plan']);
     Route::post('/subscribe', [SubscriptionController::class, 'subscribe']);
     Route::post('/initialize-payment', [PaymentController::class, 'initializePayment']);
 });

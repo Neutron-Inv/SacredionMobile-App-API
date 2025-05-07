@@ -33,9 +33,9 @@ class SubscriptionController extends Controller
         ]);
     }
 
-    public function plan()
+    public function plan($cors_id)
     {
-        $plans = Plan::all();
+        $plans = Plan::whereIn('cors', [$cors_id])->get();
 
         return response()->json([
             'status' => 'success',

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('price');
+            $table->json('cors');
             $table->string('duration');
             $table->string('user_limit');
             $table->string('usage_limit');
