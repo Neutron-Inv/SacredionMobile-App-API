@@ -53,6 +53,10 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth:sanctum')
     ->name('logout');
 
+Route::post('/request-code', [UserController::class, 'sendVerificationCode']);
+Route::post('/verify-code', [UserController::class, 'verifyCode']);
+Route::delete('/user', [UserController::class, 'deleteProfile']);
+
 /*
 |--------------------------------------------------------------------------
 | Protected Routes (Require Authentication)

@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
@@ -114,5 +116,68 @@ class RegisteredUserController extends Controller
         $username = $prefix . $randomChars;
 
         return $username;
+    }
+
+    public function sendVerificationCode(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
+
+        $code = rand(1000, 9999);
+
+        // Store the code in cache for 10 minutes
+        Cache::put('verification_code_' . $request->email, $code, 600);
+
+        // Send the code via email
+        Mail::to($request->email)->send(new VerificationCodeMail($code));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Verification code sent to your email.'
+        ]);
+    }
+
+    public function verifyCode(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'code' => 'required|digits:4'
+        ]);
+
+        $cachedCode = Cache::get('verification_code_' . $request->email);
+
+        if ($cachedCode && $cachedCode == $request->code) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Verification successful.'
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid or expired verification code.'
+        ], 400);
+    }
+
+
+    public function deleteProfile(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        if ($user) {
+            $user->delete();
+            Cache::forget('verification_code_' . $request->email);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User profile deleted successfully.'
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'User not found.'
+        ], 404);
     }
 }
