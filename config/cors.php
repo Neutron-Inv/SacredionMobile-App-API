@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => explode(',', env('FRONTEND_URLS', 'http://localhost:3000')),
+    'allowed_origins' => ['https://api.sacredion.com', 'https://sacredion.com'],
 
 
     'allowed_origins_patterns' => [],
