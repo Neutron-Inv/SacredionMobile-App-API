@@ -146,11 +146,13 @@ class RegisteredUserController extends Controller
         $cachedCode = Cache::get('verification_code_' . $request->email);
 
         if ($cachedCode && $cachedCode == $request->code) {
-            // Use query builder to avoid Eloquent's prepared statement caching
-            $deleted = \DB::table('users')->where('email', $request->email)->delete();
+            // Delete the user
+            $user = User::where('email', $request->email)->firstOrFail();
 
-            if ($deleted) {
+
+            if ($user->delete()) {
                 Cache::forget('verification_code_' . $request->email);
+
                 return response()->json([
                     'status' => 'success',
                     'message' => 'User profile deleted successfully.'
@@ -159,7 +161,7 @@ class RegisteredUserController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'User not found or already deleted.'
+                'message' => 'User not found.'
             ], 404);
         }
 
