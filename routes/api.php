@@ -53,9 +53,10 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth:sanctum')
     ->name('logout');
 
-Route::post('/request-code', [UserController::class, 'sendVerificationCode']);
-Route::post('/verify-code', [UserController::class, 'verifyCode']);
-Route::delete('/user', [UserController::class, 'deleteProfile']);
+Route::post('/request-code', [RegisteredUserController::class, 'sendVerificationCode']);
+Route::post('/verify-and-delete', [RegisteredUserController::class, 'verifyAndDelete']);
+
+// Route::delete('/user', action: [RegisteredUserController::class, 'deleteProfile']);
 
 /*
 |--------------------------------------------------------------------------

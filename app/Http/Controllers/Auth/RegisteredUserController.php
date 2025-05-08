@@ -136,7 +136,7 @@ class RegisteredUserController extends Controller
         ]);
     }
 
-    public function verifyCode(Request $request)
+    public function verifyAndDelete(Request $request)
     {
         $request->validate([
             'email' => 'required|email|exists:users,email',
@@ -146,15 +146,28 @@ class RegisteredUserController extends Controller
         $cachedCode = Cache::get('verification_code_' . $request->email);
 
         if ($cachedCode && $cachedCode == $request->code) {
+            // Delete the user
+            $user = User::where('email', $request->email)->first();
+
+            if ($user) {
+                $user->delete();
+                Cache::forget('verification_code_' . $request->email);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'User profile deleted successfully.'
+                ]);
+            }
+
             return response()->json([
-                'status' => 'success',
-                'message' => 'Verification successful.'
-            ]);
+                'status' => 'error',
+                'message' => 'User not found.'
+            ], 404);
         }
 
         return response()->json([
             'status' => 'error',
-            'message' => 'Invalid or expired verification code.'
+            'message' => 'Invalid verification code.'
         ], 400);
     }
 
