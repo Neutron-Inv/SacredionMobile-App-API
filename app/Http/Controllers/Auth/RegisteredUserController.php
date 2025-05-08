@@ -147,10 +147,10 @@ class RegisteredUserController extends Controller
 
         if ($cachedCode && $cachedCode == $request->code) {
             // Delete the user
-            $user = User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->firstOrFail();
 
-            if ($user) {
-                $user->delete();
+
+            if ($user->delete()) {
                 Cache::forget('verification_code_' . $request->email);
 
                 return response()->json([
